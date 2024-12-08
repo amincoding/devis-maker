@@ -28,15 +28,31 @@ def add_product():
             "Unit Price": unit_price,
             "Total Price": total_price
         })
+        
+        # Show the product in the side panel
+        update_side_panel()
+        
         messagebox.showinfo("Success", f"Added: {product_name}")
         entry_name.delete(0, tk.END)
         entry_quantity.delete(0, tk.END)
         entry_price.delete(0, tk.END)
-        unit_var.set("Select Unit")  # Reset the dropdown menu
+        unit_var.set("وحدة")  # Reset the dropdown menu to the default value "وحدة"
     except ValueError:
         messagebox.showerror("Input Error", "Please enter valid numeric values for Quantity and Unit Price.")
 
-# Function to save the product list to an Excel file
+# Function to update the side panel with the latest product list
+def update_side_panel():
+    # Clear the side panel first
+    for widget in side_panel.winfo_children():
+        widget.destroy()
+
+    # Add new items to the side panel
+    for product in products:
+        # Change the separator from '-' to '|'
+        product_label = tk.Label(side_panel, text=f"{product['Product Name']} | {product['Quantity']} | {product['Unit']} | {product['Total Price']} DA")
+        product_label.pack(padx=5, pady=2)
+
+# Function to save the product list to two Excel workspaces
 def save_to_excel():
     if not products:
         messagebox.showwarning("No Products", "No products to save. Add some products first.")
@@ -44,24 +60,37 @@ def save_to_excel():
     
     df = pd.DataFrame(products)
     print("DataFrame content:\n", df)  # Debug: Print the DataFrame content to check column names and data
+    
     try:
-        total = df['Total Price'].sum()
+        # Create the 'priced_devis' sheet with all product details
+        df_priced = df[["Product Name", "Quantity", "Unit", "Unit Price", "Total Price"]]
 
-        # Creating a total row
-        total_row = pd.DataFrame([{"Product Name": "Total", "Total Price": total}])
+        # Create the 'devis' sheet with only quantities (no prices)
+        df_devis = df[["Product Name", "Quantity", "Unit"]]
 
-        # Concatenate the total row to the DataFrame
-        df = pd.concat([df, total_row], ignore_index=True)
+        # Creating a total row for both DataFrames
+        total_priced = df_priced['Total Price'].sum()
+        total_row_priced = pd.DataFrame([{"Product Name": "Total", "Total Price": total_priced}])
 
-        # Add index column with header "N"
-        df.index = df.index + 1  # Start index from 1 instead of 0
-        df.index.name = 'N'
+        total_devis = df_devis['Quantity'].sum()
+        total_row_devis = pd.DataFrame([{"Product Name": "Total", "Quantity": total_devis}])
 
-        # Save the DataFrame to an Excel file
+        # Concatenate the total rows to the respective DataFrames
+        df_priced = pd.concat([df_priced, total_row_priced], ignore_index=True)
+        df_devis = pd.concat([df_devis, total_row_devis], ignore_index=True)
+
+        # Add index column with header "N" for both sheets
+        df_priced.index = df_priced.index + 1
+        df_priced.index.name = 'N'
+        df_devis.index = df_devis.index + 1
+        df_devis.index.name = 'N'
+
+        # Save the DataFrames to an Excel file with two sheets
         with pd.ExcelWriter('devis.xlsx', engine='openpyxl') as excel_writer:
-            df.to_excel(excel_writer, index=True, sheet_name='Devis')
+            df_priced.to_excel(excel_writer, index=True, sheet_name='priced_devis')
+            df_devis.to_excel(excel_writer, index=True, sheet_name='devis')
 
-        messagebox.showinfo("Success", "Excel file created successfully.")
+        messagebox.showinfo("Success", "Excel file created successfully with two sheets.")
     except KeyError as e:
         messagebox.showerror("Error", f"Missing column in DataFrame: {e}")
 
@@ -69,12 +98,9 @@ def save_to_excel():
 root = tk.Tk()
 root.title("Devis bordereau")
 
-# Add company logo at the top
-logo_image = Image.open("logo.png")
-logo_image = logo_image.resize((300, 300))  # Adjust size if necessary
-logo_photo = ImageTk.PhotoImage(logo_image)
-logo_label = tk.Label(root, image=logo_photo)
-logo_label.grid(row=0, column=0, columnspan=2, pady=10)
+# Create a side panel to display added products
+side_panel = tk.Frame(root)
+side_panel.grid(row=0, column=2, rowspan=7, padx=10, pady=5)
 
 # Create the input fields and labels (start from row 1 now)
 tk.Label(root, text="Product Name").grid(row=1, column=0, padx=10, pady=5)
@@ -89,8 +115,8 @@ tk.Label(root, text="Unit").grid(row=3, column=0, padx=10, pady=5)
 
 # Dropdown menu for selecting the unit
 unit_var = tk.StringVar(root)
-unit_var.set("Select Unit")  # Default value
-unit_options = ["Select Unit", "وحدة", "كلم", "كلغ", "متر", "غرام", "سم", "علبة"]
+unit_var.set("وحدة")  # Default value
+unit_options = ["وحدة", "كلم", "كلغ", "متر", "غرام", "سم", "علبة"]
 unit_menu = tk.OptionMenu(root, unit_var, *unit_options)
 unit_menu.grid(row=3, column=1, padx=10, pady=5)
 
